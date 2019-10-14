@@ -30,6 +30,7 @@
         <module>nice-nifi-service-api-nar</module>
         <module>nice-nifi-stored-procedure-processor</module>
         <module>nice-nifi-stored-procedure-processor-nar</module>
+        <module>nice-nifi-utils</module>
     </modules>
 
     <dependencyManagement>
