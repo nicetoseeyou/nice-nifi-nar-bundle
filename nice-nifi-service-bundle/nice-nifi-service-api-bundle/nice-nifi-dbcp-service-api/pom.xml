@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>lab.nice</groupId>
-        <artifactId>nice-nifi-nar-bundle</artifactId>
+        <artifactId>nice-nifi-service-api-bundle</artifactId>
         <version>${revision}</version>
     </parent>
 
-    <artifactId>nice-nifi-utils</artifactId>
+    <artifactId>nice-nifi-dbcp-service-api</artifactId>
     <packaging>jar</packaging>
 
-    <name>nice-nifi-utils</name>
+    <name>nice-nifi-dbcp-service-api</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -25,13 +25,6 @@
             <groupId>org.apache.nifi</groupId>
             <artifactId>nifi-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
-    <build>
-    </build>
 </project>

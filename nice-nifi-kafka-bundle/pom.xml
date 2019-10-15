@@ -13,10 +13,7 @@
     <artifactId>nice-nifi-kafka-bundle</artifactId>
     <packaging>pom</packaging>
 
-    <modules>
-        <module>nice-nifi-kafka-processor</module>
-        <module>nice-nifi-kafka-nar</module>
-    </modules>
+    <name>nice-nifi-kafka-bundle</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -27,6 +24,11 @@
         <avro.version>1.9.1</avro.version>
         <commons.io.version>2.6</commons.io.version>
     </properties>
+
+    <modules>
+        <module>nice-nifi-kafka-processor</module>
+        <module>nice-nifi-kafka-nar</module>
+    </modules>
 
     <dependencyManagement>
         <dependencies>

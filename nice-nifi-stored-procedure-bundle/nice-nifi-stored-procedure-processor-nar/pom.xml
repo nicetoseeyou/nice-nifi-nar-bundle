@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>lab.nice</groupId>
-        <artifactId>nice-nifi-kafka-bundle</artifactId>
+        <artifactId>nice-nifi-stored-procedure-bundle</artifactId>
         <version>${revision}</version>
     </parent>
 
-    <artifactId>nice-nifi-kafka-nar</artifactId>
+    <artifactId>nice-nifi-stored-procedure-processor-nar</artifactId>
     <packaging>nar</packaging>
 
-    <name>nice-nifi-kafka-nar</name>
+    <name>nice-nifi-stored-procedure-processor-nar</name>
 
     <properties>
         <maven.javadoc.skip>true</maven.javadoc.skip>
@@ -22,14 +21,20 @@
     <dependencies>
         <dependency>
             <groupId>lab.nice</groupId>
-            <artifactId>nice-nifi-kafka-processor</artifactId>
+            <artifactId>nice-nifi-stored-procedure-processor</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.nifi</groupId>
-            <artifactId>nifi-standard-services-api-nar</artifactId>
-            <type>nar</type>
+            <artifactId>nifi-standard-reporting-tasks</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.nifi</groupId>
+            <artifactId>nifi-standard-content-viewer</artifactId>
+            <type>war</type>
         </dependency>
     </dependencies>
 
+    <build>
+    </build>
 </project>
