@@ -31,6 +31,7 @@
         <module>nice-nifi-stored-procedure-processor</module>
         <module>nice-nifi-stored-procedure-processor-nar</module>
         <module>nice-nifi-utils</module>
+        <module>nice-nifi-kafka-bundle</module>
     </modules>
 
     <dependencyManagement>
@@ -63,10 +64,35 @@
             <dependency>
                 <groupId>org.apache.nifi</groupId>
                 <artifactId>nifi-standard-content-viewer</artifactId>
+                <version>${nifi.version}</version>
                 <type>war</type>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.nifi</groupId>
+                <artifactId>nifi-standard-services-api-nar</artifactId>
+                <version>${nifi.version}</version>
+                <type>nar</type>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.nifi</groupId>
+                <artifactId>nifi-record-serialization-service-api</artifactId>
                 <version>${nifi.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>org.apache.nifi</groupId>
+                <artifactId>nifi-record</artifactId>
+                <version>${nifi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.nifi</groupId>
+                <artifactId>nifi-ssl-context-service-api</artifactId>
+                <version>${nifi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.nifi</groupId>
+                <artifactId>nifi-kerberos-credentials-service-api</artifactId>
+                <version>${nifi.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>com.zaxxer</groupId>
