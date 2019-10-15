@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>lab.nice</groupId>
+        <artifactId>nice-nifi-nar-bundle</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>nice-nifi-stored-procedure-bundle</artifactId>
+    <packaging>pom</packaging>
+
+    <name>nice-nifi-stored-procedure-bundle</name>
+
+    <properties>
+        <hsqldb.version>2.5.0</hsqldb.version>
+    </properties>
+
+    <modules>
+        <module>nice-nifi-stored-procedure-processor</module>
+        <module>nice-nifi-stored-procedure-processor-nar</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.hsqldb</groupId>
+                <artifactId>hsqldb</artifactId>
+                <version>${hsqldb.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+
+</project>

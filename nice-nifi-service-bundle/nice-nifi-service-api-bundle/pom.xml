@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>lab.nice</groupId>
+        <artifactId>nice-nifi-service-bundle</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>nice-nifi-service-api-bundle</artifactId>
+    <packaging>pom</packaging>
+
+    <name>nice-nifi-service-api-bundle</name>
+
+    <modules>
+        <module>nice-nifi-dbcp-service-api</module>
+        <module>nice-nifi-service-api-nar</module>
+    </modules>
+
+
+</project>
