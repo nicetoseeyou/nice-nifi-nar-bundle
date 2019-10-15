@@ -1,5 +1,6 @@
 package lab.nice.nifi.service.db;
 
+import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import lab.nice.nifi.api.db.DatabaseConnectionPoolService;
 import lab.nice.nifi.util.PropertyConstant;
@@ -23,7 +24,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
 
 /**
  * Implementation of for Database Connection Pooling Service. HikariCP is used for connection pooling functionality.
@@ -172,7 +173,7 @@ public class HikariCPService extends AbstractControllerService implements Databa
                     "Default: same as maximumPoolSize")
             .defaultValue(null)
             .required(false)
-            .addValidator(StandardValidators.POSITIVE_LONG_VALIDATOR)
+            .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
             .expressionLanguageSupported(ExpressionLanguageScope.VARIABLE_REGISTRY)
             .build();
 
@@ -188,7 +189,7 @@ public class HikariCPService extends AbstractControllerService implements Databa
                     "Please read about pool sizing. Default: 10")
             .defaultValue("10")
             .required(true)
-            .addValidator(StandardValidators.POSITIVE_LONG_VALIDATOR)
+            .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
             .expressionLanguageSupported(ExpressionLanguageScope.VARIABLE_REGISTRY)
             .build();
 
@@ -292,34 +293,110 @@ public class HikariCPService extends AbstractControllerService implements Databa
      */
     @OnEnabled
     public void onConfigured(final ConfigurationContext context) throws InitializationException {
+        final HikariConfig config = new HikariConfig();
+        applyHikariConfig(context, config);
+        applyDynamicConfig(context, config);
+        hikariDataSource = new HikariDataSource(config);
+    }
 
-        final String driverClass = context.getProperty(DRIVER_CLASS_NAME).evaluateAttributeExpressions().getValue();
-        final String username = context.getProperty(USERNAME).evaluateAttributeExpressions().getValue();
-        final String password = context.getProperty(PASSWORD).evaluateAttributeExpressions().getValue();
-        final Long connectionTimeout = context.getProperty(CONNECTION_TIMEOUT).asTimePeriod(TimeUnit.MILLISECONDS);
-        final Integer maximumPoolSize = context.getProperty(MAXIMUM_POOL_SIZE).asInteger();
-        final String connectionTestQuery = context.getProperty(CONNECTION_TEST_QUERY).evaluateAttributeExpressions().getValue();
-
-        hikariDataSource = new HikariDataSource();
-        hikariDataSource.setDriverClassName(driverClass);
-
-        final String jdbcUrl = context.getProperty(JDBC_URL).evaluateAttributeExpressions().getValue();
-
-        hikariDataSource.setConnectionTimeout(connectionTimeout);
-        hikariDataSource.setMaximumPoolSize(maximumPoolSize);
-
-        if (StringUtils.isNotBlank(connectionTestQuery)) {
-            hikariDataSource.setConnectionTestQuery(connectionTestQuery);
+    private void applyHikariConfig(final ConfigurationContext context, final HikariConfig hikariConfig) throws InitializationException {
+        final String dataSourceClass = context.getProperty(DATA_SOURCE_CLASS_NAME).evaluateAttributeExpressions().getValue();
+        if (StringUtils.isNotBlank(dataSourceClass)) {
+            hikariConfig.setDataSourceClassName(dataSourceClass);
         }
 
-        hikariDataSource.setJdbcUrl(jdbcUrl);
-        hikariDataSource.setUsername(username);
-        hikariDataSource.setPassword(password);
+        final String jdbcUrl = context.getProperty(JDBC_URL).evaluateAttributeExpressions().getValue();
+        if (StringUtils.isNotBlank(jdbcUrl)) {
+            hikariConfig.setJdbcUrl(jdbcUrl);
+        }
 
-        context.getProperties().keySet().stream().filter(PropertyDescriptor::isDynamic)
-                .forEach((dynamicPropDescriptor) -> hikariDataSource.addDataSourceProperty(dynamicPropDescriptor.getName(),
-                        context.getProperty(dynamicPropDescriptor).evaluateAttributeExpressions().getValue()));
+        final String username = context.getProperty(USERNAME).evaluateAttributeExpressions().getValue();
+        if (StringUtils.isNotBlank(username)) {
+            hikariConfig.setUsername(username);
+        } else {
+            throw new InitializationException("username not set.");
+        }
 
+        final String password = context.getProperty(PASSWORD).evaluateAttributeExpressions().getValue();
+        if (StringUtils.isNotBlank(password)) {
+            hikariConfig.setPassword(password);
+        } else {
+            throw new InitializationException("password not set.");
+        }
+
+        final Boolean autoCommit = context.getProperty(AUTO_COMMIT).asBoolean();
+        if (null != autoCommit) {
+            hikariConfig.setAutoCommit(autoCommit);
+        }
+
+        final Long connectionTimeout = context.getProperty(CONNECTION_TIMEOUT).asLong();
+        if (null != connectionTimeout) {
+            hikariConfig.setConnectionTimeout(connectionTimeout);
+        }
+
+        final Long idleTimeout = context.getProperty(IDLE_TIMEOUT).asLong();
+        if (null != idleTimeout) {
+            hikariConfig.setIdleTimeout(idleTimeout);
+        }
+
+        final Long maxLifetime = context.getProperty(MAX_LIFE_TIME).asLong();
+        if (null != maxLifetime) {
+            hikariConfig.setMaxLifetime(maxLifetime);
+        }
+
+        final String connectionTestQuery = context.getProperty(CONNECTION_TEST_QUERY).evaluateAttributeExpressions().getValue();
+        if (StringUtils.isNotBlank(connectionTestQuery)) {
+            hikariConfig.setConnectionTestQuery(connectionTestQuery);
+        }
+
+        final Integer minIdle = context.getProperty(MINIMUM_IDLE).evaluateAttributeExpressions().asInteger();
+        if (null != minIdle) {
+            hikariConfig.setMinimumIdle(minIdle);
+        }
+
+        final Integer maxPoolSize = context.getProperty(MAXIMUM_POOL_SIZE).asInteger();
+        if (null != maxPoolSize) {
+            hikariConfig.setMaximumPoolSize(maxPoolSize);
+        }
+
+        final String poolName = context.getProperty(POOL_NAME).evaluateAttributeExpressions().getValue();
+        if (StringUtils.isNotBlank(poolName)) {
+            hikariConfig.setPoolName(poolName);
+        }
+
+        final Long initializationFailTimeout = context.getProperty(INITIALIZATION_FAIL_TIMEOUT).evaluateAttributeExpressions().asLong();
+        if (null != initializationFailTimeout) {
+            hikariConfig.setInitializationFailTimeout(initializationFailTimeout);
+        }
+
+        final String driverClass = context.getProperty(DRIVER_CLASS_NAME).evaluateAttributeExpressions().getValue();
+        if (StringUtils.isNotBlank(driverClass)) {
+            hikariConfig.setDriverClassName(driverClass);
+        }
+        try{
+            hikariConfig.validate();
+        }catch (Exception e){
+            throw new InitializationException(e);
+        }
+    }
+
+    private void applyDynamicConfig(final ConfigurationContext context, final HikariConfig hikariConfig) throws InitializationException {
+        for (Map.Entry<PropertyDescriptor, String> entry : context.getProperties().entrySet()) {
+            final PropertyDescriptor propertyDescriptor = entry.getKey();
+            if (propertyDescriptor.isDynamic()) {
+                if (propertyDescriptor.isExpressionLanguageSupported()) {
+                    hikariConfig.addDataSourceProperty(propertyDescriptor.getName(),
+                            context.getProperty(propertyDescriptor).evaluateAttributeExpressions().getValue());
+                } else {
+                    hikariConfig.addDataSourceProperty(propertyDescriptor.getName(), entry.getValue());
+                }
+            }
+        }
+        try{
+            hikariConfig.validate();
+        }catch (Exception e){
+            throw new InitializationException(e);
+        }
     }
 
     /**
@@ -341,6 +418,6 @@ public class HikariCPService extends AbstractControllerService implements Databa
 
     @Override
     public String toString() {
-        return "HikariCPConnectionPool[id=" + getIdentifier() + "]";
+        return "HikariCP[id=" + getIdentifier() + "]";
     }
 }
