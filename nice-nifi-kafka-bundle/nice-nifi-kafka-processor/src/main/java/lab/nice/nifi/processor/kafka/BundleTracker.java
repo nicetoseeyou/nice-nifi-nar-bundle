@@ -4,8 +4,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.nifi.flowfile.FlowFile;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class BundleTracker {
     private final String topic;
@@ -16,8 +14,8 @@ public class BundleTracker {
     private long endOffset;
     private final long startTimestamp;
     private long endTimestamp;
-    private AtomicLong recordSize = new AtomicLong(-1);
-    private AtomicInteger recordCount = new AtomicInteger(0);
+    private long bundleSize = -1L;
+    private int bundleCount = 0;
     private volatile FlowFile flowFile;
 
     public BundleTracker(final String topic, final int partition, final boolean bundled,
@@ -68,12 +66,12 @@ public class BundleTracker {
         return endTimestamp;
     }
 
-    public long getRecordSize() {
-        return recordSize.get();
+    public long getBundleSize() {
+        return bundleSize;
     }
 
-    public int getRecordCount() {
-        return recordCount.get();
+    public int getBundleCount() {
+        return bundleCount;
     }
 
     public FlowFile getFlowFile() {
@@ -93,18 +91,16 @@ public class BundleTracker {
     }
 
     public void increaseCount() {
-        this.recordCount.incrementAndGet();
+        this.bundleCount++;
     }
 
     public void increaseSize(final long recordSize) {
         if (recordSize >= 0) {
-            this.recordSize.accumulateAndGet(recordSize, (prev, next) -> {
-                if (prev < 0) {
-                    return next;
-                } else {
-                    return prev + next;
-                }
-            });
+            if (bundleSize < 0) {
+                bundleSize = recordSize;
+            } else {
+                bundleSize += recordSize;
+            }
         }
     }
 
@@ -125,14 +121,14 @@ public class BundleTracker {
                 Objects.equals(endOffset, that.endOffset) &&
                 Objects.equals(startTimestamp, that.startTimestamp) &&
                 Objects.equals(endTimestamp, that.endTimestamp) &&
-                Objects.equals(recordSize, that.recordSize) &&
-                Objects.equals(recordCount, that.recordCount) &&
+                Objects.equals(bundleSize, that.bundleSize) &&
+                Objects.equals(bundleCount, that.bundleCount) &&
                 Objects.equals(flowFile, that.flowFile);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(topic, partition, bundled, matched, startOffset, endOffset, startTimestamp, endTimestamp, recordSize, recordCount, flowFile);
+        return Objects.hash(topic, partition, bundled, matched, startOffset, endOffset, startTimestamp, endTimestamp, bundleSize, bundleCount, flowFile);
     }
 
     @Override
@@ -146,8 +142,8 @@ public class BundleTracker {
                 ", endOffset=" + endOffset +
                 ", startTimestamp=" + startTimestamp +
                 ", endTimestamp=" + endTimestamp +
-                ", recordSize=" + recordSize +
-                ", recordCount=" + recordCount +
+                ", bundleSize=" + bundleSize +
+                ", bundleCount=" + bundleCount +
                 ", flowFile=" + flowFile +
                 '}';
     }
