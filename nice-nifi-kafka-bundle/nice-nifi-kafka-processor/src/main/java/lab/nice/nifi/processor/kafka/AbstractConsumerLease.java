@@ -1,9 +1,26 @@
 package lab.nice.nifi.processor.kafka;
 
+import java.io.Closeable;
+import java.nio.charset.Charset;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import lab.nice.nifi.processor.kafka.common.KafkaProcessorConstant;
 import lab.nice.nifi.processor.kafka.common.KafkaWriteAttribute;
 import lab.nice.nifi.processor.kafka.util.KafkaProcessorUtility;
-import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Header;
@@ -14,16 +31,13 @@ import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.exception.ProcessException;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
-public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerRebalanceListener {
+/**
+ * Abstract Consumer lease with default behaviours
+ *
+ * @param <K> the type of Kafka ConsumerRecord's key
+ * @param <V> the type of Kafka ConsumerRecord's value
+ */
+public abstract class AbstractConsumerLease<K, V> implements Closeable, ConsumerRebalanceListener {
 
     private final Consumer<K, V> consumer;
     private final ComponentLog logger;
@@ -46,15 +60,35 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
     private int recordCount = 0;
     private long recordSize = -1L;
 
+    private ConsumerLeaseListener leaseListener;
+
     private volatile ProcessSession session;
-    private volatile ProcessContext processContext;
+    private volatile ProcessContext context;
     private volatile boolean closedConsumer;
 
-    public AbstractKafkaConsumerLease(final Consumer<K, V> consumer, final ComponentLog logger,
-                                      final byte[] delimiterBytes, final long maxWaitMilliseconds,
-                                      final long maxBundleSize, final int maxBundleCount,
-                                      final String securityProtocol, final String bootstrapServers,
-                                      final Charset headerCharacterSet, final Pattern headerNamePattern) {
+    /**
+     * default constructor to create consumer lease.
+     * Writing records separately, construct with null delimiter. Otherwise, the delimiter,
+     * the maximum bundle count and the maximum bundle size in byte are required to specified.
+     * Adding Kafka ConsumerRecord's headers as FlowFile attributes, both the header name pattern
+     * and the header charset are required to specified.
+     *
+     * @param consumer            the associated Kafka consumer
+     * @param logger              the logger to report any errors/warnings
+     * @param delimiterBytes      bytes to use as delimiter between messages; null or empty means no delimiter
+     * @param maxWaitMilliseconds maximum time to wait for a given lease to acquire data before committing
+     * @param maxBundleSize       maximum size of a bundle FlowFile content
+     * @param maxBundleCount      maximum record count of a bundle FlowFile content
+     * @param securityProtocol    the security protocol used
+     * @param bootstrapServers    the bootstrap servers
+     * @param headerCharacterSet  indicates the Character Encoding to use to deserialize the headers
+     * @param headerNamePattern   a Regular Expression that is matched against all message headers
+     */
+    public AbstractConsumerLease(final Consumer<K, V> consumer, final ComponentLog logger,
+                                 final byte[] delimiterBytes, final long maxWaitMilliseconds,
+                                 final long maxBundleSize, final int maxBundleCount,
+                                 final String securityProtocol, final String bootstrapServers,
+                                 final Charset headerCharacterSet, final Pattern headerNamePattern) {
         this.consumer = consumer;
         this.logger = logger;
         this.delimiterBytes = delimiterBytes;
@@ -67,7 +101,20 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
         this.headerNamePattern = headerNamePattern;
     }
 
+    /**
+     * Executes a poll on the underlying Kafka Consumer and creates any new
+     * flowfiles necessary or appends to existing ones if in demarcation mode.
+     */
     public void poll() {
+        /*
+         * Implementation note:
+         * Even if ConsumeKafka is not scheduled to poll due to downstream connection back-pressure is engaged,
+         * for longer than session.timeout.ms (defaults to 10 sec), Kafka consumer sends heartbeat from background thread.
+         * If this situation lasts longer than max.poll.interval.ms (defaults to 5 min), Kafka consumer sends
+         * Leave Group request to Group Coordinator. When ConsumeKafka processor is scheduled again, Kafka client checks
+         * if this client instance is still a part of consumer group. If not, it rejoins before polling messages.
+         * This behavior has been fixed via Kafka KIP-62 and available from Kafka client 0.10.1.0.
+         */
         try {
             final ConsumerRecords<K, V> records = consumer.poll(
                     Duration.ofMillis(KafkaProcessorConstant.DEFAULT_KAFKA_CONSUME_TIMEOUT));
@@ -81,12 +128,27 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
         }
     }
 
+    /**
+     * Notifies Kafka to commit the offsets for the specified topic/partition
+     * pairs to the specified offsets w/the given metadata. This can offer
+     * higher performance than the other commitOffsets call as it allows the
+     * kafka client to collect more data from Kafka before committing the
+     * offsets.
+     * <p>
+     * if false then we didn't do anything and should probably yield if true
+     * then we committed new data
+     */
     public boolean commit() {
         if (uncommittedOffsetMap.isEmpty()) {
             resetInternalState();
             return false;
         } else {
             try {
+                /*
+                 * Committing the NiFi session then the offsets means we have an at
+                 * least once guarantee here. If we reversed the order we'd have at
+                 * most once.
+                 */
                 for (List<BundleTracker> trackers : bundleMap.values()) {
                     trackers.forEach(tracker -> transfer(session, tracker));
                 }
@@ -109,9 +171,23 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
 
     public void setupProcess(final ProcessSession session, final ProcessContext context) {
         this.session = session;
-        this.processContext = context;
+        this.context = context;
     }
 
+    /**
+     * register listener to the lease
+     *
+     * @param leaseListener the listener to register
+     */
+    public void registerListener(final ConsumerLeaseListener leaseListener) {
+        this.leaseListener = leaseListener;
+    }
+
+    /**
+     * Process consumer records
+     *
+     * @param records the records to process
+     */
     protected void processRecords(final ConsumerRecords<K, V> records) {
         records.partitions().stream().forEach(topicPartition -> {
             final List<ConsumerRecord<K, V>> messages = records.records(topicPartition);
@@ -128,6 +204,14 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
         });
     }
 
+    /**
+     * Write records in bundle into FlowFile content and separate by the given delimiter
+     *
+     * @param session        the associated ProcessSession
+     * @param records        the records to write
+     * @param topicPartition the topic and partition information of the records
+     * @return the maximum offset of the records
+     */
     protected long writeDemarcatedData(final ProcessSession session, final List<ConsumerRecord<K, V>> records,
                                        final TopicPartition topicPartition) {
         long maxOffset = -1;
@@ -178,6 +262,14 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
         return maxOffset;
     }
 
+    /**
+     * Write record into FlowFile separately
+     *
+     * @param session        the associated ProcessSession
+     * @param records        the records to write
+     * @param topicPartition the topic and partition information of the records
+     * @return the maximum offset of the records
+     */
     protected long writeDirectData(final ProcessSession session, final List<ConsumerRecord<K, V>> records,
                                    final TopicPartition topicPartition) {
         long maxOffset = -1L;
@@ -227,6 +319,13 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
         return false;
     }
 
+    /**
+     * create an new FlowFile
+     *
+     * @param session    the associated ProcessSession
+     * @param attributes the attributes to populate into the new FlowFile
+     * @return an new FlowFile with the given attributes
+     */
     protected FlowFile createFlowFile(final ProcessSession session, final Map<String, String> attributes) {
         FlowFile flowFile = session.create();
         if (null != attributes && !attributes.isEmpty()) {
@@ -258,7 +357,7 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
             writeAttributes.put(KafkaWriteAttribute.KAFKA_OFFSET, String.valueOf(tracker.getStartOffset()));
             writeAttributes.put(KafkaWriteAttribute.KAFKA_TIMESTAMP, String.valueOf(tracker.getStartTimestamp()));
         }
-        writeAttributes.put(CoreAttributes.MIME_TYPE.key(), recordMimeType());
+        writeAttributes.put(CoreAttributes.MIME_TYPE.key(), contentMimeType());
         final FlowFile newFlowFile = session.putAllAttributes(tracker.getFlowFile(), writeAttributes);
         final long executionDurationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - leaseStartNanos);
         final String transitUri = KafkaProcessorUtility
@@ -286,7 +385,12 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
         return headerAttributes;
     }
 
-    //TODO make abstract
+    /**
+     * transfer FlowFile to next
+     *
+     * @param session the associated ProcessSession
+     * @param tracker the record tracker
+     */
     protected void transfer(final ProcessSession session, final BundleTracker tracker) {
         if (tracker.isMatched()) {
             session.transfer(tracker.getFlowFile(), KafkaProcessorConstant.KAFKA_CONSUME_MATCH);
@@ -295,20 +399,28 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
         }
     }
 
-    //TODO make abstract
-    protected String recordMimeType() {
-        return "";
-    }
+    /**
+     * return the MIME type of the written content in FlowFile
+     *
+     * @return the MIME type
+     */
+    protected abstract String contentMimeType();
 
-    //TODO make abstract
-    protected byte[] recordInBytes(final ConsumerRecord<K, V> record) {
-        return null;
-    }
+    /**
+     * Convert the record into FlowFile content to write in bytes
+     *
+     * @param record the record to convert
+     * @return content in bytes
+     */
+    protected abstract byte[] recordInBytes(final ConsumerRecord<K, V> record);
 
-    //TODO make abstract
-    protected boolean recordPredicate(final ConsumerRecord<K, V> record) {
-        return true;
-    }
+    /**
+     * Indicate whether the record matches a given rule
+     *
+     * @param record the record to test
+     * @return true if the record matches given rule otherwise false
+     */
+    protected abstract boolean recordPredicate(final ConsumerRecord<K, V> record);
 
     /**
      * clears out internal state elements excluding session and consumer as
@@ -387,24 +499,85 @@ public class AbstractKafkaConsumerLease<K, V> implements Closeable, ConsumerReba
         consumer.wakeup();
     }
 
+    /**
+     * Close the associated Kafka consumer instance
+     */
+    private void closeConsumer() {
+        leaseListener.beforeConsumerClose();
+        try {
+            consumer.unsubscribe();
+        } catch (Exception e) {
+            logger.warn("Failed to unsubscribe " + consumer, e);
+        }
+
+        try {
+            consumer.close();
+        } catch (Exception e) {
+            logger.warn("Failed while closing " + consumer, e);
+        }
+    }
+
+    /**
+     * close the lease itself, it can be force close
+     */
+    protected void close(boolean forceClose) {
+        if (closedConsumer) {
+            return;
+        }
+        resetInternalState();
+        if (session != null) {
+            session.rollback();
+            setupProcess(null, null);
+        }
+        if (forceClose || isPoisoned() || !leaseListener.reusable()) {
+            closedConsumer = true;
+            closeConsumer();
+        }
+    }
+
+    /**
+     * close the lease itself
+     */
     @Override
     public void close() {
         resetInternalState();
+        close(false);
     }
 
+    /**
+     * Kafka will call this method whenever it is about to rebalance the
+     * consumers for the given partitions. We'll simply take this to mean that
+     * we need to quickly commit what we've got and will return the consumer to
+     * the pool. This method will be called during the poll() method call of
+     * this class and will be called by the same thread calling poll according
+     * to the Kafka API docs. After this method executes the session and kafka
+     * offsets are committed and this lease is closed.
+     *
+     * @param partitions partitions being reassigned
+     */
     @Override
     public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
         if (logger.isDebugEnabled()) {
             logger.debug("Rebalance Alert: Paritions '{}' revoked for lease '{}' with consumer '{}'",
                     new Object[]{partitions, this, consumer});
         }
-        //force a commit here.  Can reuse the session and consumer after this but must commit now to avoid duplicates if kafka reassigns partition
+        //force a commit here.  Can reuse the session and consumer after this but must commit now
+        // to avoid duplicates if kafka reassigns partition
         commit();
     }
 
+    /**
+     * This will be called by Kafka when the rebalance has completed. We don't
+     * need to do anything with this information other than optionally log it as
+     * by this point we've committed what we've got and moved on.
+     *
+     * @param partitions topic partition set being reassigned
+     */
     @Override
     public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-        logger.debug("Rebalance Alert: Paritions '{}' assigned for lease '{}' with consumer '{}'",
-                new Object[]{partitions, this, consumer});
+        if (logger.isDebugEnabled()) {
+            logger.debug("Rebalance Alert: Paritions '{}' assigned for lease '{}' with consumer '{}'",
+                    new Object[]{partitions, this, consumer});
+        }
     }
 }
