@@ -1,9 +1,9 @@
 package lab.nice.nifi.processor.kafka;
 
+import java.util.Objects;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.nifi.flowfile.FlowFile;
-
-import java.util.Objects;
 
 public class BundleTracker {
     private final String topic;

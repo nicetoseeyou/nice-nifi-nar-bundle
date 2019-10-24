@@ -1,10 +1,11 @@
 package lab.nice.nifi.processor.kafka;
 
+import java.util.Map;
+import java.util.Objects;
+
 import org.apache.kafka.common.TopicPartition;
 import org.apache.nifi.serialization.record.RecordSchema;
 
-import java.util.Map;
-import java.util.Objects;
 
 public class BundleInfo {
     private final TopicPartition topicPartition;
