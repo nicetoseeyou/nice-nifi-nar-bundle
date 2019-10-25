@@ -1,1 +1,1 @@
-lab.nice.nifi.processor.kafka.ConsumeKafka
+lab.nice.nifi.processor.kafka.ConsumerKafkaInJson
