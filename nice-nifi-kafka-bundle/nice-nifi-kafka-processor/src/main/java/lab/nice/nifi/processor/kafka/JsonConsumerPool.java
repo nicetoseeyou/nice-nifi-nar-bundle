@@ -43,7 +43,9 @@ public class JsonConsumerPool extends AbstractConsumerPool<JsonNode, JsonNode> {
                             final long maxBundleSize, final int maxBundleCount,
                             final String securityProtocol, final String bootstrapServers,
                             final Charset headerCharacterSet, final Pattern headerNamePattern) {
-        super(maxConcurrentLeases, logger, topics, topicPattern, kafkaProperties, honorTransactions, delimiterBytes, maxWaitMilliseconds, maxBundleSize, maxBundleCount, securityProtocol, bootstrapServers, headerCharacterSet, headerNamePattern);
+        super(maxConcurrentLeases, logger, topics, topicPattern, kafkaProperties, honorTransactions,
+                delimiterBytes, maxWaitMilliseconds, maxBundleSize, maxBundleCount, securityProtocol,
+                bootstrapServers, headerCharacterSet, headerNamePattern);
     }
 
     @Override
