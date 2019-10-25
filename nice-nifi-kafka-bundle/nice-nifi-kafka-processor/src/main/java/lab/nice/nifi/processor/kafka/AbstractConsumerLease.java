@@ -216,7 +216,8 @@ public abstract class AbstractConsumerLease<K, V> implements Closeable, Consumer
                                        final TopicPartition topicPartition) {
         long maxOffset = -1;
         final Map<BundleInfo, List<ConsumerRecord<K, V>>> map = records.stream()
-                .collect(Collectors.groupingBy(record -> new BundleInfo(topicPartition, null, evaluateHeaderAttributes(record))));
+                .collect(Collectors.groupingBy(record ->
+                        new BundleInfo(topicPartition, null, evaluateHeaderAttributes(record))));
         for (Map.Entry<BundleInfo, List<ConsumerRecord<K, V>>> entry : map.entrySet()) {
             final BundleInfo bundleInfo = entry.getKey();
             final List<ConsumerRecord<K, V>> recordList = entry.getValue();
