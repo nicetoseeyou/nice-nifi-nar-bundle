@@ -253,12 +253,15 @@ public abstract class AbstractConsumerLease<K, V> implements Closeable, Consumer
                     tracker.increaseSize(recordInBytes.length);
                     tracker.updateFlowFile(flowFile);
                 }
+                tracker.setEndTimestamp(record.timestamp());
+                tracker.setEndOffset(record.offset());
                 tracker.increaseCount();
                 addWriteAttributes(session, tracker);
                 if (maxOffset < record.offset()) {
                     maxOffset = record.offset();
                 }
             }
+            bundleMap.put(bundleInfo, trackers);
         }
         return maxOffset;
     }
