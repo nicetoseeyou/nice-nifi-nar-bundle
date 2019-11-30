@@ -29,7 +29,7 @@ import java.util.Map;
 /**
  * Implementation of for Database Connection Pooling Service. HikariCP is used for connection pooling functionality.
  */
-@Tags({"HikariCP", "dbcp", "jdbc", "database", "connection", "pooling", "store"})
+@Tags({"HikariCP", "dbcp", "jdbc", "database", "connection", "pooling"})
 @CapabilityDescription("Provides Database Connection Pooling Service. Connections can be asked from pool and returned after usage.")
 @DynamicProperty(name = "JDBC property name", value = "JDBC property value",
         expressionLanguageScope = ExpressionLanguageScope.VARIABLE_REGISTRY,
