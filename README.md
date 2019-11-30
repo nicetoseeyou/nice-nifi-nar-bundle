@@ -1,7 +1,7 @@
 # nice-nifi-nar-bundle
 NiFi nar bundle
 ### Available Processor
-1. ExecuteStoredProcedure
+1. [ExecuteStoredProcedure](ExecuteStoredProcedure.md)  
     - Maven dependency (not deployed)  
     ```
    <denpendency>
@@ -11,9 +11,9 @@ NiFi nar bundle
        <type>nar</type>
    </denpendency>
     ```
-    - Description  
+    - Description
     Executes provided stored procedure.
-2. ConsumerKafkaInJson
+2. [ConsumerKafkaInJson](ConsumerKafkaInJson.md)
     - Maven dependency (not deployed)  
     ``` 
    <denpendency>
@@ -24,9 +24,9 @@ NiFi nar bundle
    </denpendency>
     ```
     - Description  
-    Consume Kafka topic with JSON messages. The default Kafka deserializer is _org.apache.kafka.connect.json.JsonSerializer_ . Please do configure key/value deserializer via dynamic property with key '_key.serializer_' and '_value.serializer_'.
+    Consume Kafka topic with JSON messages. The default Kafka deserializer is _org.apache.kafka.connect.json.JsonSerializer_ .
 ### Available Service Controller
-1. HikariCPService
+1. [HikariCPService](HikariCPService.md)
     - Maven dependency (not deployed)  
     ``` 
    <dependency>
