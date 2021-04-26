@@ -22,7 +22,7 @@
         <kafka.version>2.3.0</kafka.version>
         <scala.compact.version>2.12</scala.compact.version>
         <avro.version>1.9.1</avro.version>
-        <commons.io.version>2.6</commons.io.version>
+        <commons.io.version>2.7</commons.io.version>
     </properties>
 
     <modules>
